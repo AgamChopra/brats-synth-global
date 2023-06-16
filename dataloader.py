@@ -16,7 +16,7 @@ import random
 from matplotlib import pyplot as plt
 import nibabel as nib
 from scipy.ndimage import zoom
-
+import pickle
 
 def norm(A):
     return (A - torch.min(A))/(torch.max(A) - torch.min(A))
@@ -88,18 +88,35 @@ def augment_batch(x):
         x[i] = rand_augment(x[i])
     return x
 
+def pkload(fname):
+    with open(fname, 'rb') as f:
+        return pickle.load(f)
+
 
 def load_patient(path, idx):
-    t1 = torch.from_numpy(nib.load(os.path.join(
-        path, 'T1_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-                                                                176, 176))
-    t2 = torch.from_numpy(nib.load(os.path.join(
-        path, 'T2_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-                                                                176, 176))
-    pet = torch.from_numpy(nib.load(os.path.join(
-        path, 'PET_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-                                                                 176, 176))
-    return torch.cat((t1, t2, pet), dim=1)
+    
+    x1, x2, x3, x4, y1  = pkload(os.path.join(path+'BraTS2021_'+f'{idx:05}'+'.pkl'))
+    x1, x2, x3, x4 = x1[None, ...], x2[None, ...],x3[None, ...],x4[None, ...]
+    y1 = y1[None, ...]
+    x1 = np.ascontiguousarray(x1)
+    x2 = np.ascontiguousarray(x2)
+    x3 = np.ascontiguousarray(x3)
+    x4 = np.ascontiguousarray(x4)
+    y1 = np.ascontiguousarray(y1)
+    x1, x2, x3, x4 = torch.from_numpy(x1), torch.from_numpy(x2), torch.from_numpy(x3), torch.from_numpy(x4)
+    y1 = torch.from_numpy(y1)    
+    data = torch.cat(x1, x2, x3, x4,y1)
+    
+    # t1 = torch.from_numpy(nib.load(os.path.join(
+    #     path, 'T1_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
+    #                                                             176, 176))
+    # t2 = torch.from_numpy(nib.load(os.path.join(
+    #     path, 'T2_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
+    #                                                             176, 176))
+    # pet = torch.from_numpy(nib.load(os.path.join(
+    #     path, 'PET_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
+    #                                                              176, 176))
+    return data
 
 
 def load_batch_dataset(path, idx_list):
@@ -108,8 +125,8 @@ def load_batch_dataset(path, idx_list):
 
 
 class train_dataloader():
-    def __init__(self, path='/home/agam/Desktop/PET_PROCESSED/train',
-                 batch=32, max_id=1077, post=False, augment=True):
+    def __init__(self, path='/Volumes/Kurtlab/Brats2022/Brats_SEG/Training_1/',
+                 batch=1, max_id=100, post=False, augment=True):
         self.augment = augment
         self.max_id = max_id  # last patient to load from 0 to max_id
         self.id = 0
