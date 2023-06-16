@@ -1,46 +1,37 @@
 # -*- coding: utf-8 -*-
 """
-Created on Jan 2023
+Created on June 2023
 @author: Agamdeep Chopra
 @email: achopra4@uw.edu
 @website: https://agamchopra.github.io/
 @affiliation: KurtLab, Department of Mechanical Engineering,
               University of Washington, Seattle, USA
-@Refs:
+@Refs: 
+    - PyTorch 2.0 stable documentation @ https://pytorch.org/docs/stable/
 """
-import os
 from random import randint
 import numpy as np
-from numpy.random import choice
 import torch
 import torch.nn as nn
 from tqdm import trange
 from matplotlib import pyplot as plt
 from pytorch_msssim import SSIM
-import nibabel as nib
 
 import dataloader
-import Disc_PET_model as models
+import models
 
-torch.set_printoptions(precision=10)
-torch.set_float32_matmul_precision('high')
+torch.set_printoptions(precision=6)
 
+# 'highest', 'high', 'medium'. 'highest' is slower but accurate while 'medium'
+#    is faster but less accurate. Before changing please refer to
+#        https://pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
+torch.set_float32_matmul_precision('medium')
 
-def np_mse(y, yp):
-    error = np.mean((y - yp)**2)
-    return error
+# 'True' = faster but less accurate, 'False' = Slower but more accurate
+torch.backends.cuda.matmul.allow_tf32 = True
 
-
-def one_hot_generator(T):  # (T, T)
-    one_hot = torch.zeros((T, T))
-    for i in range(T):
-        one_hot[i, i] = 1
-    return one_hot
-
-
-def get_random_batch_modalities(data, one_hot):  # input: (Batch, 4, ...), (N,N); Output: Normalized (Batch, 3, ...), Normalized (Batch, 1, ...), (Batch, 4)
-    out_idx = [randint(0, one_hot.shape[0] - 1) for _ in range(data.shape[0])]
-    
+# 'True' = faster but less accurate, 'False' = Slower but more accurate
+torch.backends.cudnn.allow_tf32 = True
 
 
 class PSNR():
@@ -68,13 +59,53 @@ class ssim_loss(nn.Module):
 
 def norm(x):
     EPSILON = 1E-9
-    try:
+    if torch.is_tensor(x):
         return (x - torch.min(x)) / ((torch.max(x) - torch.min(x)) + EPSILON)
-    except:
+    else:
         try:
             return (x - np.min(x)) / ((np.max(x) - np.min(x)) + EPSILON)
         except Exception:
             print('WARNING: Input could not be normalized!')
+
+
+def np_mse(y, yp):
+    error = np.mean((y - yp)**2)
+    return error
+
+
+def one_hot_generator(T):  # (T, T)
+    one_hot = torch.zeros((T, T))
+    for i in range(T):
+        one_hot[i, i] = 1
+    return one_hot
+
+
+# input: (Batch, 4, ...), (N,N); Output: (Batch, 3, ...), (Batch, 1, ...), (Batch, 4)
+def get_random_batch_modalities(data, one_hot, device='cpu'):
+    idx = [randint(0, one_hot.shape[0] - 1) for _ in range(data.shape[0])]
+    encodings = torch.zeros(data.shape[0:2])
+
+    x = []
+    y = []
+
+    for i in range(len(idx)):
+        encodings[i, idx[i]] = 1.
+        if idx[i] == 0:
+            y.append(data[i, 0].unsqueeze(1))
+            x.append(data[i, 1:])
+        elif idx[i] == data.shape[1] - 1:
+            y.append(data[i, -1].unsqueeze(1))
+            x.append(data[i, :-1])
+        else:
+            y.append(data[i, idx[i]].unsqueeze(1))
+            x.append(
+                torch.cat((data[i, :idx[i]], data[i, idx[i] + 1:]), dim=0))
+
+    x = torch.stack(x, dim=0).to(device)
+    y = torch.stack(y, dim=0).to(device)
+    encodings = encodings.to(device)
+
+    return x, y, encodings
 
 
 def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
@@ -82,7 +113,9 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
           loss_functions=[nn.MSELoss(), nn.L1Loss(),
                           ssim_loss(win_size=3, win_sigma=0.1), PSNR()], T=4,
           iter_val=7):
+
     print(device)
+
     # load the model
     neural_network = models.Attention_UNetTT(2, 1, T, 8).to(device)
     if model_path is not None:
@@ -105,7 +138,7 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
 
     # how many times to iterate each epoch
     iterations = 1 * (int(data.max_id / batch) + (data.max_id % batch > 0))
-    iterations_val = iter_val  # !!! TO BE SET MANUALLY
+    iterations_val = iter_val
 
     # store training loss for visualization
     losses = []
@@ -123,10 +156,10 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
         for i in trange(iterations):
             optimizer.zero_grad()
 
-            a = data.load_batch().to(dtype=torch.float, device=device)
+            a = data.load_batch()
 
             input_modalities, output_modality, encodes = get_random_batch_modalities(
-                a, one_hot_encodes)  # Normalized (Batch, 3, ...), (Batch, 1, ...), (Batch, 4)
+                a, one_hot_encodes, device)  # Normalized (Batch, 3, ...), (Batch, 1, ...), (Batch, 4)
 
             synth_output_modality = neural_network(input_modalities, encodes)
 
@@ -216,14 +249,11 @@ def trn(checkpoint_path, epochs=500, lr=1E-4, batch=32,
 
 
 if __name__ == '__main__':
-    checkpoint_path = '/home/agam/Documents/pet-project/ADNI_Disc-PET_v5_fulldata/'
-    epochs = 1000
-    N = 50
-    T = 64
-    lr = 1E-5
-    batch = 6
-    device = 'cuda'
-    params = '/home/agam/Documents/pet-project/ADNI_Disc-PET_v5/' + \
-        'checkpoint_175_epochs.pt'  # full path
+    checkpoint_path = ''
+    epochs = 500
+    lr = 1E-3
+    batch = 8
+    device = 'cuda:0'
+    num_val = 32  # number of validation samples
 
-    trn(checkpoint_path, epochs, lr, batch, device, params, N=N, T=T)
+    trn(checkpoint_path, epochs, lr, batch, device, iter_val=num_val)

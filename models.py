@@ -4,18 +4,12 @@ from math import ceil
 
 
 def pad3d(input_, target, device='cpu'):
-    inshape = input_.shape[2:]
-    outshape = target.shape[2:]
-    delta = [outshape[i] - inshape[i] for i in range(len(outshape))]
-
-    d1, d2 = ceil(delta[0]/2), delta[0] - ceil(delta[0]/2)
-    r1, r2 = ceil(delta[1]/2), delta[1] - ceil(delta[1]/2)
-    c1, c2 = ceil(delta[2]/2), delta[2] - ceil(delta[2]/2)
-
-    output_ = nn.functional.pad(input=input_, pad=(
-        c1, c2, r1, r2, d1, d2), mode='constant', value=0)
-
-    return output_.to(dtype=torch.float, device=device)
+    delta = [target.shape[2+i] - input_.shape[2+i] for i in range(3)]
+    return nn.functional.pad(input=input_, pad=(ceil(delta[2]/2), delta[2] - ceil(delta[2]/2),
+                                                ceil(
+                                                    delta[1]/2), delta[1] - ceil(delta[1]/2),
+                                                ceil(delta[0]/2), delta[0] - ceil(delta[0]/2)),
+                             mode='constant', value=0).to(dtype=torch.float, device=device)
 
 
 class attention_grid(nn.Module):
@@ -143,6 +137,9 @@ class Attention_UNetT(nn.Module):
         self.skip4 = attention_grid(int(512/n), int(512/n), int(512/n))
 
     def forward(self, x, embds, out_att=False):
+        assert x.device == embds.device, "inputs 'x' and 'embds' are expected to be on the same device, but found at least two devices, '%s' and '%s'!" % (
+            x.device, embds.device)
+
         device = x.device
 
         x = x.to(dtype=torch.float, device=device)
@@ -178,7 +175,7 @@ class Attention_UNetT(nn.Module):
         y = nn.functional.interpolate(y, size=x.shape[2:], mode=self.mode)
 
         if out_att:
-            return y, a1, a2, a3, a4
+            return y, (a1, a2, a3, a4)
         else:
             return y
 
@@ -197,4 +194,4 @@ def test_model(device='cpu', N=1):
 
 
 if __name__ == '__main__':
-    test_model('cpu', 2)
+    test_model('cuda', 2)
