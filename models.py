@@ -1,3 +1,14 @@
+# -*- coding: utf-8 -*-
+"""
+Created on June 2023
+@author: Agamdeep Chopra
+@email: achopra4@uw.edu
+@website: https://agamchopra.github.io/
+@affiliation: KurtLab, Department of Mechanical Engineering,
+              University of Washington, Seattle, USA
+@Refs:
+    - PyTorch 2.0 stable documentation @ https://pytorch.org/docs/stable/
+"""
 import torch
 import torch.nn as nn
 from math import ceil
