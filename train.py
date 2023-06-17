@@ -129,7 +129,7 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
 
     # load dataloader
     data = dataloader.train_dataloader(augment=True, batch=batch)
-    data_val = dataloader.valset_dataloader(batch=1)
+    data_val = dataloader.val_dataloader(batch=1)
     print('%d training samples, %d validation samples' %
           (data.max_id, len(data_val.pid)))
 

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on June 2023
-@author: Agamdeep Chopra
-@email: achopra4@uw.edu
+@author: Agamdeep Chopra, Tianyi
+@email: achopra4@uw.edu, tr1@uw.edu
 @website: https://agamchopra.github.io/
 @affiliation: KurtLab, Department of Mechanical Engineering,
               University of Washington, Seattle, USA
@@ -14,8 +14,8 @@ import torch
 from torchio.transforms import RandomFlip, RandomAffine, RandomElasticDeformation
 import random
 from matplotlib import pyplot as plt
-import nibabel as nib
 from scipy.ndimage import zoom
+import pickle
 
 
 def norm(A):
@@ -89,17 +89,23 @@ def augment_batch(x):
     return x
 
 
+def pkload(fname):
+    with open(fname, 'rb') as f:
+        return pickle.load(f)
+
+
+def prs_dta(x):
+    x = torch.from_numpy(np.ascontiguousarray(x[None, ...]))
+    return x
+
+
 def load_patient(path, idx):
-    t1 = torch.from_numpy(nib.load(os.path.join(
-        path, 'T1_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-                                                                176, 176))
-    t2 = torch.from_numpy(nib.load(os.path.join(
-        path, 'T2_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-                                                                176, 176))
-    pet = torch.from_numpy(nib.load(os.path.join(
-        path, 'PET_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-                                                                 176, 176))
-    return torch.cat((t1, t2, pet), dim=1)
+    x1, x2, x3, x4, y1 = pkload(os.path.join(
+        path+'BraTS2021_'+f'{idx:05}'+'.pkl'))
+    x1, x2, x3, x4, y1 = prs_dta(x1), prs_dta(
+        x2), prs_dta(x3), prs_dta(x4), prs_dta(y1)
+    data = torch.cat(x1, x2, x3, x4, y1)
+    return data
 
 
 def load_batch_dataset(path, idx_list):
@@ -108,8 +114,8 @@ def load_batch_dataset(path, idx_list):
 
 
 class train_dataloader():
-    def __init__(self, path='/home/agam/Desktop/PET_PROCESSED/train',
-                 batch=32, max_id=1077, post=False, augment=True):
+    def __init__(self, path='/Volumes/Kurtlab/Brats2022/Brats_SEG/Training_1/',
+                 batch=1, max_id=100, post=False, augment=True):
         self.augment = augment
         self.max_id = max_id  # last patient to load from 0 to max_id
         self.id = 0
