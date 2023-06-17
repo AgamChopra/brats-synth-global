@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on June 2023
-@author: Agamdeep Chopra
-@email: achopra4@uw.edu
+@author: Agamdeep Chopra, Tianyi
+@email: achopra4@uw.edu, tr1@uw.edu
 @website: https://agamchopra.github.io/
 @affiliation: KurtLab, Department of Mechanical Engineering,
               University of Washington, Seattle, USA
@@ -14,9 +14,9 @@ import torch
 from torchio.transforms import RandomFlip, RandomAffine, RandomElasticDeformation
 import random
 from matplotlib import pyplot as plt
-import nibabel as nib
 from scipy.ndimage import zoom
 import pickle
+
 
 def norm(A):
     return (A - torch.min(A))/(torch.max(A) - torch.min(A))
@@ -88,34 +88,23 @@ def augment_batch(x):
         x[i] = rand_augment(x[i])
     return x
 
+
 def pkload(fname):
     with open(fname, 'rb') as f:
         return pickle.load(f)
 
 
+def prs_dta(x):
+    x = torch.from_numpy(np.ascontiguousarray(x[None, ...]))
+    return x
+
+
 def load_patient(path, idx):
-    
-    x1, x2, x3, x4, y1  = pkload(os.path.join(path+'BraTS2021_'+f'{idx:05}'+'.pkl'))
-    x1, x2, x3, x4 = x1[None, ...], x2[None, ...],x3[None, ...],x4[None, ...]
-    y1 = y1[None, ...]
-    x1 = np.ascontiguousarray(x1)
-    x2 = np.ascontiguousarray(x2)
-    x3 = np.ascontiguousarray(x3)
-    x4 = np.ascontiguousarray(x4)
-    y1 = np.ascontiguousarray(y1)
-    x1, x2, x3, x4 = torch.from_numpy(x1), torch.from_numpy(x2), torch.from_numpy(x3), torch.from_numpy(x4)
-    y1 = torch.from_numpy(y1)    
-    data = torch.cat(x1, x2, x3, x4,y1)
-    
-    # t1 = torch.from_numpy(nib.load(os.path.join(
-    #     path, 'T1_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-    #                                                             176, 176))
-    # t2 = torch.from_numpy(nib.load(os.path.join(
-    #     path, 'T2_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-    #                                                             176, 176))
-    # pet = torch.from_numpy(nib.load(os.path.join(
-    #     path, 'PET_' + str(idx) + '.nii')).get_fdata()).reshape((1, 1, 176,
-    #                                                              176, 176))
+    x1, x2, x3, x4, y1 = pkload(os.path.join(
+        path+'BraTS2021_'+f'{idx:05}'+'.pkl'))
+    x1, x2, x3, x4, y1 = prs_dta(x1), prs_dta(
+        x2), prs_dta(x3), prs_dta(x4), prs_dta(y1)
+    data = torch.cat(x1, x2, x3, x4, y1)
     return data
 
 
@@ -187,5 +176,3 @@ class val_dataloader():
         self.id += self.batch
 
         return batch_raw
-=======
->>>>>>> Tianyi
