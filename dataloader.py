@@ -99,31 +99,32 @@ def prs_dta(x):
     return x
 
 
-def load_patient(path, idx):
-    x1, x2, x3, x4, y1 = pkload(os.path.join(
-        path+'BraTS2021_'+f'{idx:05}'+'.pkl'))
+def load_patient(path, idx, filename):
+    x1, x2, x3, x4, y1 = pkload(os.path.join(path,filename[idx]))
     x1, x2, x3, x4, y1 = prs_dta(x1), prs_dta(
         x2), prs_dta(x3), prs_dta(x4), prs_dta(y1)
     data = torch.cat(x1, x2, x3, x4, y1)
     return data
 
 
-def load_batch_dataset(path, idx_list):
-    data = [load_patient(path, idx) for idx in idx_list]
+def load_batch_dataset(path, idx_list,filename):
+    data = [load_patient(path, idx,filename) for idx in idx_list]
     return torch.cat(data, dim=0)
 
 
 class train_dataloader():
     def __init__(self, path='/Volumes/Kurtlab/Brats2022/Brats_SEG/Training_1/',
-                 batch=1, max_id=100, post=False, augment=True):
+                 batch=1,  post=False, augment=True):
         self.augment = augment
-        self.max_id = max_id  # last patient to load from 0 to max_id
+        #self.max_id = max_id  # last patient to load from 0 to max_id
         self.id = 0
         self.batch = batch
         self.idx = None
         self.Flag = True
         self.post = post
         self.path = path
+        self.filename = os.listdir(self.path)
+        self.max_id = len(self.filename)
 
     def randomize(self):
         sample_len = self.max_id - 1
@@ -138,17 +139,17 @@ class train_dataloader():
 
         if self.id + self.batch > max_id:
             if self.id < max_id:
-                batch_raw = load_batch_dataset(self.path, self.idx[self.id:])
+                batch_raw = load_batch_dataset(self.path, self.idx[self.id:],self.filename)
             elif self.id == max_id:
                 batch_raw = load_batch_dataset(
-                    self.path, self.idx[self.id:self.id + 1])
+                    self.path, self.idx[self.id:self.id + 1], self.filename)
             self.id = 0
             self.randomize()
             if self.post:
                 print('Dataset re-randomized...')
         else:
             batch_raw = load_batch_dataset(
-                self.path, self.idx[self.id:self.id + self.batch])
+                self.path, self.idx[self.id:self.id + self.batch],self.filename)
             self.id += self.batch
 
         if self.augment:
