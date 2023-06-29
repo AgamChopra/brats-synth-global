@@ -117,7 +117,7 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
     print(device)
 
     # load the model
-    neural_network = models.Attention_UNetTT(2, 1, T, 8).to(device)
+    neural_network = models.Attention_UNetT(2, 1, T, 8).to(device)
     if model_path is not None:
         neural_network.load_state_dict(
             torch.load(model_path, map_location=device))
@@ -236,9 +236,9 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
 
 
 def trn(checkpoint_path, epochs=500, lr=1E-4, batch=32,
-        device='cpu', params=None, N=100, T=128):
+        device='cpu', params=None, N=100, T=128 ,iter_val=32):
     losst, lossv = train(checkpoint_path, epochs,
-                         lr, batch, device, params, N=N, T=T)
+                         lr, batch, device, params, T=T)
     plt.plot(losst, label='Training Loss')
     plt.plot(lossv, label='Validation Loss')
     plt.title('Compound Loss')
