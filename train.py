@@ -112,7 +112,7 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=2,
           device='cpu', model_path=None, lambdas=[0.15, 0.15, 0.60, 0.20],
           loss_functions=[nn.MSELoss(), nn.L1Loss(),
                           ssim_loss(win_size=3, win_sigma=0.1), PSNR()], T=4,
-          iter_val=7):
+          iter_val=3):
 
     print(device)
 
@@ -182,11 +182,10 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=2,
         # validation loop (after each epoch)
         for i in trange(iterations_val):
             with torch.no_grad():
-                a = data_val.load_batch().to(dtype=torch.float, device=device)
-                a = data.load_batch().to(dtype=torch.float, device=device)
+                a = data_val.load_batch()
 
                 input_modalities, output_modality, encodes = get_random_batch_modalities(
-                    a, one_hot_encodes)  # Normalized (Batch, 3, ...), (Batch, 1, ...), (Batch, 4)
+                    a, one_hot_encodes, device)  # Normalized (Batch, 3, ...), (Batch, 1, ...), (Batch, 4)
 
                 synth_output_modality = neural_network(
                     input_modalities, encodes).to(dtype=torch.float)

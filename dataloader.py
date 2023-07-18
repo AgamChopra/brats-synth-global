@@ -116,7 +116,7 @@ def load_batch_dataset(path, idx_list, filename):
 
 
 class train_dataloader():
-    def __init__(self, path='Z:/Brats2022/Brats_SEG/Training_1/',
+    def __init__(self, path='Z:/Brats2023/Brats2023/Brats2023_dataset/Task1/test/',
                  batch=1,  post=False, augment=True):
         self.augment = augment
         self.id = 0
@@ -129,8 +129,8 @@ class train_dataloader():
         self.max_id = len(self.filename) - 1
 
     def randomize(self):
-        sample_len = self.max_id + 1
-        self.idx = random.sample(range(0, self.max_id), sample_len)
+        sample_len = len(self.filename)
+        self.idx = random.sample(range(0, sample_len), sample_len)
 
     def load_batch(self, post=False):
         if self.Flag:  # only runs the first time
@@ -138,17 +138,22 @@ class train_dataloader():
             self.Flag = False
 
         if self.id + self.batch > self.max_id:
+            
             if self.id < self.max_id:
+                print('Condition 1')
                 batch_raw = load_batch_dataset(
                     self.path, self.idx[self.id:], self.filename)
+            
             elif self.id == self.max_id:
+                print('Condition 2')
                 batch_raw = load_batch_dataset(
                     self.path, self.idx[self.id:self.id + 1], self.filename)
             self.id = 0
             self.randomize()
             if self.post:
-                print('Dataset re-randomized...')
+                print('Dataset re-randomized...')       
         else:
+            print('Condition 3')
             batch_raw = load_batch_dataset(
                 self.path, self.idx[self.id:self.id + self.batch], self.filename)
             self.id += self.batch
@@ -160,27 +165,20 @@ class train_dataloader():
 
 
 class val_dataloader():
-    def __init__(self, path='Z:/Brats2022/Brats_SEG/Testing_1/',
+    def __init__(self, path='Z:/Brats2023/Brats2023/Brats2023_dataset/Task1/test/',
                  batch=1):
         self.id = 0
-        self.batch = batch
-        self.idx = None
+        self.batch = 1
         self.path = path
+        print(path)
+        print( os.listdir(self.path))
         self.filename = os.listdir(self.path)
         self.max_id = len(self.filename) - 1
+        print(self.filename)
 
     def load_batch(self):
-        if self.id + self.batch > self.max_id:
-            if self.id < self.max_id:
-                batch_raw = load_batch_dataset(
-                    self.path, self.idx[self.id:], self.filename)
-            elif self.id == self.max_id:
-                batch_raw = load_batch_dataset(
-                    self.path, self.idx[self.id:self.id + 1], self.filename)
+        batch_raw = load_batch_dataset(self.path, [self.id], self.filename)
+        self.id += self.batch
+        if self.batch >= self.max_id:
             self.id = 0
-        else:
-            batch_raw = load_batch_dataset(
-                self.path, self.idx[self.id:self.id + self.batch], self.filename)
-            self.id += self.batch
-
         return batch_raw
