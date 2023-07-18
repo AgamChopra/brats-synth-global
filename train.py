@@ -53,6 +53,7 @@ class ssim_loss(nn.Module):
                          win_size=win_size, win_sigma=win_sigma)
 
     def forward(self, x, y):
+        print(x.shape, y.shape)
         loss = 1 - self.ssim(x, y)
         return loss
 
@@ -91,37 +92,36 @@ def get_random_batch_modalities(data, one_hot, device='cpu'):
     for i in range(len(idx)):
         encodings[i, idx[i]] = 1.
         if idx[i] == 0:
-            y.append(data[i, 0].unsqueeze(1))
+            y.append(data[i, 0].unsqueeze(0))
             x.append(data[i, 1:])
         elif idx[i] == data.shape[1] - 1:
-            y.append(data[i, -1].unsqueeze(1))
+            y.append(data[i, -1].unsqueeze(0))
             x.append(data[i, :-1])
         else:
-            y.append(data[i, idx[i]].unsqueeze(1))
+            y.append(data[i, idx[i]].unsqueeze(0))
             x.append(
                 torch.cat((data[i, :idx[i]], data[i, idx[i] + 1:]), dim=0))
 
     x = torch.stack(x, dim=0).to(device)
     y = torch.stack(y, dim=0).to(device)
     encodings = encodings.to(device)
-
     return x, y, encodings
 
 
-def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
+def train(checkpoint_path, epochs=100, lr=1E-4, batch=2,
           device='cpu', model_path=None, lambdas=[0.15, 0.15, 0.60, 0.20],
           loss_functions=[nn.MSELoss(), nn.L1Loss(),
                           ssim_loss(win_size=3, win_sigma=0.1), PSNR()], T=4,
-          iter_val=7):
+          iter_val=3):
 
     print(device)
 
     # load the model
-    neural_network = models.Attention_UNetTT(2, 1, T, 8).to(device)
+    neural_network = models.Attention_UNetT(4, 1, T, 64).to(device)
     if model_path is not None:
         neural_network.load_state_dict(
             torch.load(model_path, map_location=device))
-    neural_network = torch.compile(neural_network)
+    # neural_network = torch.compile(neural_network)
 
     # load the optimizer and criterion
     optimizer = torch.optim.Adam(neural_network.parameters(), lr)
@@ -130,8 +130,8 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
     # load dataloader
     data = dataloader.train_dataloader(augment=True, batch=batch)
     data_val = dataloader.val_dataloader(batch=1)
-    print('%d training samples, %d validation samples' %
-          (data.max_id, len(data_val.pid)))
+    # print('%d training samples, %d validation samples' %
+    #       (data.max_id, len(data_val.pid)))
 
     # (T, T) one hot encoded...
     one_hot_encodes = one_hot_generator(T).to(device=device)
@@ -158,10 +158,14 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
 
             a = data.load_batch()
 
+            print(a.shape)
+
             input_modalities, output_modality, encodes = get_random_batch_modalities(
                 a, one_hot_encodes, device)  # Normalized (Batch, 3, ...), (Batch, 1, ...), (Batch, 4)
 
-            synth_output_modality = neural_network(input_modalities, encodes)
+            synth_output_modality = neural_network(
+                input_modalities, encodes).to(dtype=torch.float)
+            output_modality = output_modality.to(dtype=torch.float)
 
             error = sum([lambdas[i] * criterion[i](output_modality,
                         synth_output_modality) for i in range(len(criterion))])
@@ -178,14 +182,15 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
         # validation loop (after each epoch)
         for i in trange(iterations_val):
             with torch.no_grad():
-                a = data_val.load_batch().to(dtype=torch.float, device=device)
-                a = data.load_batch().to(dtype=torch.float, device=device)
+                a = data_val.load_batch()
 
                 input_modalities, output_modality, encodes = get_random_batch_modalities(
-                    a, one_hot_encodes)  # Normalized (Batch, 3, ...), (Batch, 1, ...), (Batch, 4)
+                    a, one_hot_encodes, device)  # Normalized (Batch, 3, ...), (Batch, 1, ...), (Batch, 4)
 
                 synth_output_modality = neural_network(
-                    input_modalities, encodes)
+                    input_modalities, encodes).to(dtype=torch.float)
+
+                output_modality = output_modality.to(dtype=torch.float)
 
                 error = sum([lambdas[i] * criterion[i](output_modality,
                             synth_output_modality) for i in range(len(criterion))])
@@ -235,10 +240,10 @@ def train(checkpoint_path, epochs=100, lr=1E-4, batch=32,
     return losses_train, losses_val
 
 
-def trn(checkpoint_path, epochs=500, lr=1E-4, batch=32,
-        device='cpu', params=None, N=100, T=128):
+def trn(checkpoint_path, epochs=500, lr=1E-4, batch=1,
+        device='cpu', params=None, N=100, T=5, iter_val=32):
     losst, lossv = train(checkpoint_path, epochs,
-                         lr, batch, device, params, N=N, T=T)
+                         lr, batch, device, params, T=T)
     plt.plot(losst, label='Training Loss')
     plt.plot(lossv, label='Validation Loss')
     plt.title('Compound Loss')
@@ -252,7 +257,7 @@ if __name__ == '__main__':
     checkpoint_path = ''
     epochs = 500
     lr = 1E-3
-    batch = 8
+    batch = 1
     device = 'cuda:0'
     num_val = 32  # number of validation samples
 
