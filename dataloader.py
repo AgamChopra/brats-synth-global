@@ -26,7 +26,7 @@ def rand_augment(x):
     flip = RandomFlip()
     affine = RandomAffine(image_interpolation='nearest',
                           degrees=45, translation=5)
-    elastic = RandomElasticDeformation(image_interpolation='trilinear',
+    elastic = RandomElasticDeformation(image_interpolation='nearest',
                                        max_displacement=(4, 4, 4),
                                        num_control_points=random.randint(5, 7))
     x = flip(norm(affine(elastic(x))))
@@ -95,28 +95,30 @@ def pkload(fname):
 
 
 def prs_dta(x):
+    x = zoom(x, [120/x.shape[0], 120/x.shape[1],
+                 120/x.shape[2]], mode='nearest')
     x = torch.from_numpy(np.ascontiguousarray(x[None, ...]))
     return x
 
 
 def load_patient(path, idx, filename):
-    x1, x2, x3, x4, y1 = pkload(os.path.join(path,filename[idx]))
+    x1, x2, x3, x4, y1 = pkload(os.path.join(path, filename[idx]))
     x1, x2, x3, x4, y1 = prs_dta(x1), prs_dta(
         x2), prs_dta(x3), prs_dta(x4), prs_dta(y1)
-    data = torch.cat(x1, x2, x3, x4, y1)
+    data = torch.cat((x1, x2, x3, x4, y1))
+    print(data.shape)
     return data
 
 
-def load_batch_dataset(path, idx_list,filename):
-    data = [load_patient(path, idx,filename) for idx in idx_list]
-    return torch.cat(data, dim=0)
+def load_batch_dataset(path, idx_list, filename):
+    data = [load_patient(path, idx, filename) for idx in idx_list]
+    return torch.stack(data, dim=0)
 
 
 class train_dataloader():
-    def __init__(self, path='/Volumes/Kurtlab/Brats2022/Brats_SEG/Training_1/',
+    def __init__(self, path='Z:/Brats2023/Brats2023/Brats2023_dataset/Task1/test/',
                  batch=1,  post=False, augment=True):
         self.augment = augment
-        #self.max_id = max_id  # last patient to load from 0 to max_id
         self.id = 0
         self.batch = batch
         self.idx = None
@@ -124,32 +126,36 @@ class train_dataloader():
         self.post = post
         self.path = path
         self.filename = os.listdir(self.path)
-        self.max_id = len(self.filename)
+        self.max_id = len(self.filename) - 1
 
     def randomize(self):
-        sample_len = self.max_id - 1
-        self.idx = random.sample(range(1, self.max_id + 1), sample_len)
+        sample_len = len(self.filename)
+        self.idx = random.sample(range(0, sample_len), sample_len)
 
     def load_batch(self, post=False):
         if self.Flag:  # only runs the first time
             self.randomize()
             self.Flag = False
 
-        max_id = self.max_id
-
-        if self.id + self.batch > max_id:
-            if self.id < max_id:
-                batch_raw = load_batch_dataset(self.path, self.idx[self.id:],self.filename)
-            elif self.id == max_id:
+        if self.id + self.batch > self.max_id:
+            
+            if self.id < self.max_id:
+                print('Condition 1')
+                batch_raw = load_batch_dataset(
+                    self.path, self.idx[self.id:], self.filename)
+            
+            elif self.id == self.max_id:
+                print('Condition 2')
                 batch_raw = load_batch_dataset(
                     self.path, self.idx[self.id:self.id + 1], self.filename)
             self.id = 0
             self.randomize()
             if self.post:
-                print('Dataset re-randomized...')
+                print('Dataset re-randomized...')       
         else:
+            print('Condition 3')
             batch_raw = load_batch_dataset(
-                self.path, self.idx[self.id:self.id + self.batch],self.filename)
+                self.path, self.idx[self.id:self.id + self.batch], self.filename)
             self.id += self.batch
 
         if self.augment:
@@ -159,68 +165,20 @@ class train_dataloader():
 
 
 class val_dataloader():
-    # def __init__(self, path='/home/agam/Desktop/PET_PROCESSED/val',
-    #              pid=[0, 1, 351, 352, 353, 354, 355], batch=1):
-    #     self.path = path
-    #     self.pid = pid
-    #     self.id = 0
-    #     self.max_id = len(pid)
-    #     self.batch = 1
-
-    # def load_batch(self):
-    #     if self.id >= self.max_id:
-    #         self.id = 0
-
-    #     ids = [idx for idx in self.pid[self.id:self.id + self.batch]]
-    #     batch_raw = load_batch_dataset(self.path, ids)
-
-    #     self.id += self.batch
-
-    #     return batch_raw
-    
-    
-    def __init__(self, path='/Volumes/Kurtlab/Brats2022/Brats_SEG/Testing_1/',
-                 batch=1,  post=False, augment=True):
-        self.augment = augment
-        #self.max_id = max_id  # last patient to load from 0 to max_id
+    def __init__(self, path='Z:/Brats2023/Brats2023/Brats2023_dataset/Task1/test/',
+                 batch=1):
         self.id = 0
-        self.batch = batch
-        self.idx = None
-        self.Flag = True
-        self.post = post
+        self.batch = 1
         self.path = path
+        print(path)
+        print( os.listdir(self.path))
         self.filename = os.listdir(self.path)
-        self.max_id = len(self.filename)
-    
-    # no need for randomrize in testing
-    # def randomize(self):  
-    #     sample_len = self.max_id - 1
-    #     self.idx = random.sample(range(1, self.max_id + 1), sample_len)
+        self.max_id = len(self.filename) - 1
+        print(self.filename)
 
-    def load_batch(self, post=False):
-        if self.Flag:  # only runs the first time
-            #self.randomize()
-            self.Flag = False
-
-        max_id = self.max_id
-
-        if self.id + self.batch > max_id:
-            if self.id < max_id:
-                batch_raw = load_batch_dataset(self.path, self.idx[self.id:],self.filename)
-            elif self.id == max_id:
-                batch_raw = load_batch_dataset(
-                    self.path, self.idx[self.id:self.id + 1], self.filename)
+    def load_batch(self):
+        if self.id >= self.max_id:
             self.id = 0
-            #self.randomize()
-            #if self.post:
-                #print('Dataset re-randomized...')
-        else:
-            batch_raw = load_batch_dataset(
-                self.path, self.idx[self.id:self.id + self.batch],self.filename)
-            self.id += self.batch
-
-        if self.augment:
-            batch_raw = augment_batch(batch_raw)
-
+        batch_raw = load_batch_dataset(self.path, [self.id], self.filename)
+        self.id += self.batch
         return batch_raw
-    
