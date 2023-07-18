@@ -177,8 +177,8 @@ class val_dataloader():
         print(self.filename)
 
     def load_batch(self):
+        if self.id >= self.max_id:
+            self.id = 0
         batch_raw = load_batch_dataset(self.path, [self.id], self.filename)
         self.id += self.batch
-        if self.batch >= self.max_id:
-            self.id = 0
         return batch_raw
